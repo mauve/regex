@@ -53,6 +53,27 @@ UINT get_code_page_for_locale_id(lcid_type idx)
 }
 #endif
 
+namespace {
+
+#if BOOST_PLAT_WINDOWS_RUNTIME
+std::wstring lcid_to_locale_name(LCID locale)
+{
+  wchar_t buffer[LOCALE_NAME_MAX_LENGTH];
+  int result = ::LCIDToLocaleName(locale, buffer, LOCALE_NAME_MAX_LENGTH, 0);
+  BOOST_ASSERT(result == 0);
+
+  return std::wstring(buffer);
+}
+#endif
+
+int lc_map_string_w(LCID locale, DWORD dwMapFlags, LPCWSTR lpSrcStr, int cchSrc, LPWSTR lpDestStr, int cchDest)
+{
+#if BOOST_PLAT_WINDOWS_RUNTIME
+  return ::LCMapStringEx(lcid_to_locale_name(locale).c_str(), dwMapFlags, lpSrcStr, cchSrc, lpDestStr, cchDest, NULL, NULL, NULL);
+#else
+  return ::LCMapStringW(locale, dwMapFlags, lpSrcStr, cchSrc, lpDestStr, cchDest);
+#endif
+}
 
 void w32_regex_traits_char_layer<char>::init() 
 {
@@ -130,7 +151,7 @@ void w32_regex_traits_char_layer<char>::init()
    BOOST_ASSERT(conv_r != 0);
 
    WCHAR wide_lower_map[1 << CHAR_BIT];
-   int r = ::LCMapStringW(this->m_locale, LCMAP_LOWERCASE,  wide_char_map, 1 << CHAR_BIT,  wide_lower_map, 1 << CHAR_BIT);
+   int r = lc_map_string_w(this->m_locale, LCMAP_LOWERCASE,  wide_char_map, 1 << CHAR_BIT,  wide_lower_map, 1 << CHAR_BIT);
    BOOST_ASSERT(r != 0);
 
    conv_r = ::WideCharToMultiByte(code_page, 0,  wide_lower_map, r,  this->m_lower_map, 1 << CHAR_BIT,  NULL, NULL);
@@ -356,7 +377,7 @@ BOOST_REGEX_DECL std::string BOOST_REGEX_CALL w32_transform(lcid_type idx, const
    if(::MultiByteToWideChar(code_page, 0,  p1, src_len,  wide_p1, src_len + 1) == 0)
       return std::string(p1, p2);
 
-   int bytes = ::LCMapStringW(
+   int bytes = lc_map_string_w(
       idx,       // locale identifier
       LCMAP_SORTKEY,  // mapping transformation type
       wide_p1,  // source string
@@ -367,7 +388,7 @@ BOOST_REGEX_DECL std::string BOOST_REGEX_CALL w32_transform(lcid_type idx, const
    if(!bytes)
       return std::string(p1, p2);
    std::string result(++bytes, '\0');
-   bytes = ::LCMapStringW(
+   bytes = ::lc_map_string_w(
       idx,       // locale identifier
       LCMAP_SORTKEY,  // mapping transformation type
       wide_p1,  // source string
@@ -388,7 +409,7 @@ BOOST_REGEX_DECL std::string BOOST_REGEX_CALL w32_transform(lcid_type idx, const
 #ifndef BOOST_NO_WREGEX
 BOOST_REGEX_DECL std::wstring BOOST_REGEX_CALL w32_transform(lcid_type idx, const wchar_t* p1, const wchar_t* p2)
 {
-   int bytes = ::LCMapStringW(
+   int bytes = lc_map_string_w(
       idx,       // locale identifier
       LCMAP_SORTKEY,  // mapping transformation type
       p1,  // source string
@@ -399,7 +420,7 @@ BOOST_REGEX_DECL std::wstring BOOST_REGEX_CALL w32_transform(lcid_type idx, cons
    if(!bytes)
       return std::wstring(p1, p2);
    std::string result(++bytes, '\0');
-   bytes = ::LCMapStringW(
+   bytes = lc_map_string_w(
       idx,       // locale identifier
       LCMAP_SORTKEY,  // mapping transformation type
       p1,  // source string
@@ -421,7 +442,7 @@ BOOST_REGEX_DECL std::wstring BOOST_REGEX_CALL w32_transform(lcid_type idx, cons
 #ifdef BOOST_REGEX_HAS_OTHER_WCHAR_T
 BOOST_REGEX_DECL std::basic_string<unsigned short> BOOST_REGEX_CALL w32_transform(lcid_type idx, const unsigned short* p1, const unsigned short* p2)
 {
-   int bytes = ::LCMapStringW(
+   int bytes = lc_map_string_w(
       idx,       // locale identifier
       LCMAP_SORTKEY,  // mapping transformation type
       (LPCWSTR)p1,  // source string
@@ -432,7 +453,7 @@ BOOST_REGEX_DECL std::basic_string<unsigned short> BOOST_REGEX_CALL w32_transfor
    if(!bytes)
       return std::basic_string<unsigned short>(p1, p2);
    std::string result(++bytes, '\0');
-   bytes = ::LCMapStringW(
+   bytes = lc_map_string_w(
       idx,       // locale identifier
       LCMAP_SORTKEY,  // mapping transformation type
       (LPCWSTR)p1,  // source string
@@ -476,7 +497,7 @@ BOOST_REGEX_DECL char BOOST_REGEX_CALL w32_tolower(char c, lcid_type idx)
       return c;
 
    WCHAR wide_result;
-   int b = ::LCMapStringW(
+   int b = lc_map_string_w(
       idx,       // locale identifier
       LCMAP_LOWERCASE,  // mapping transformation type
       &wide_c,  // source string
@@ -496,7 +517,7 @@ BOOST_REGEX_DECL char BOOST_REGEX_CALL w32_tolower(char c, lcid_type idx)
 BOOST_REGEX_DECL wchar_t BOOST_REGEX_CALL w32_tolower(wchar_t c, lcid_type idx)
 {
    wchar_t result[2];
-   int b = ::LCMapStringW(
+   int b = lc_map_string_w(
       idx,       // locale identifier
       LCMAP_LOWERCASE,  // mapping transformation type
       &c,  // source string
@@ -511,7 +532,7 @@ BOOST_REGEX_DECL wchar_t BOOST_REGEX_CALL w32_tolower(wchar_t c, lcid_type idx)
 BOOST_REGEX_DECL unsigned short BOOST_REGEX_CALL w32_tolower(unsigned short c, lcid_type idx)
 {
    wchar_t result[2];
-   int b = ::LCMapStringW(
+   int b = lc_map_string_w(
       idx,       // locale identifier
       LCMAP_LOWERCASE,  // mapping transformation type
       (wchar_t const*)&c,  // source string
@@ -547,7 +568,7 @@ BOOST_REGEX_DECL char BOOST_REGEX_CALL w32_toupper(char c, lcid_type idx)
        return c;
 
    WCHAR wide_result;
-   int b = ::LCMapStringW(
+   int b = lc_map_string_w(
       idx,       // locale identifier
       LCMAP_UPPERCASE,  // mapping transformation type
       &wide_c,  // source string
@@ -567,7 +588,7 @@ BOOST_REGEX_DECL char BOOST_REGEX_CALL w32_toupper(char c, lcid_type idx)
 BOOST_REGEX_DECL wchar_t BOOST_REGEX_CALL w32_toupper(wchar_t c, lcid_type idx)
 {
    wchar_t result[2];
-   int b = ::LCMapStringW(
+   int b = lc_map_string_w(
       idx,       // locale identifier
       LCMAP_UPPERCASE,  // mapping transformation type
       &c,  // source string
@@ -582,7 +603,7 @@ BOOST_REGEX_DECL wchar_t BOOST_REGEX_CALL w32_toupper(wchar_t c, lcid_type idx)
 BOOST_REGEX_DECL unsigned short BOOST_REGEX_CALL w32_toupper(unsigned short c, lcid_type idx)
 {
    wchar_t result[2];
-   int b = ::LCMapStringW(
+   int b = lc_map_string_w(
       idx,       // locale identifier
       LCMAP_UPPERCASE,  // mapping transformation type
       (wchar_t const*)&c,  // source string
